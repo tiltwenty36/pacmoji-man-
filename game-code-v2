@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pac-Apple 🍎</title>
+  <style>
+    /* Mise en page du jeu */
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #000;
+      font-family: monospace;
+      color: white;
+    }
+
+    #hud {
+      margin-bottom: 10px;
+      font-size: 1.2em;
+    }
+
+    #score {
+      display: inline-block;
+      margin-left: 10px;
+    }
+
+    #game-container {
+      position: relative;
+      width: 640px;
+      height: 640px;
+      border: 4px solid #888;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+    }
+
+    #game-board {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: repeat(16, 1fr);
+      grid-template-columns: repeat(16, 1fr);
+      gap: 0;
+      background-color: #000;
+    }
+
+    .cell {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 32px;
+      user-select: none;
+      box-sizing: border-box;
+    }
+
+    /* Murs : emojis pomme 🍎 en gris sombre */
+    .wall {
+      color: #333;
+      text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Points : pommes mini 🍎 */
+    .point {
+      font-size: 14px;
+      color: #ddd;
+      text-shadow: 0 0 3px rgba(255, 255, 255, 0.6);
+    }
+
+    /* Power pellet : pomme plus grande avec lueur */
+    .power-pellet {
+      font-size: 22px;
+      color: #ffec40;
+      text-shadow:
+        0 0 8px #ffec40,
+        0 0 16px #ffec40,
+        0 0 24px rgba(255, 236, 64, 0.6);
+    }
+
+    /* Pac-Man : emoji pomme 🍎 avec rotation selon la direction */
+    .pacman {
+      transform-origin: center;
+      transition: transform 0.1s ease;
+    }
+
+    .pacman.right {
+      transform: rotate(0deg);
+    }
+
+    .pacman.down {
+      transform: rotate(90deg);
+    }
+
+    .pacman.left {
+      transform: rotate(180deg);
+    }
+
+    .pacman.up {
+      transform: rotate(270deg);
+    }
+
+    /* Fantômes : emoji pomme 🍎 avec teinte différente et petite ombre */
+    .ghost {
+      transform-origin: center;
+      color: #ff6666; /* rouge légèrement désaturé */
+      text-shadow:
+        0 0 2px rgba(255, 100, 100, 0.6),
+        0 0 4px rgba(255, 100, 100, 0.4);
+    }
+
+    .ghost.chase {
+      color: #ff8888;
+      text-shadow:
+        0 0 2px rgba(255, 130, 130, 0.6),
+        0 0 4px rgba(255, 130, 130, 0.4);
+      transform: scale(1.05);
+    }
+
+    .ghost.vulnerable {
+      color: #88ff88;
+      text-shadow:
+        0 0 4px rgba(136, 255, 136, 0.8),
+        0 0 8px rgba(136, 255, 136, 0.5);
+    }
+
+    .ghost.dead {
+      color: #cccccc;
+      opacity: 0.4;
+      text-shadow: none;
+    }
+
+    .ghost.down {
+      transform: rotate(90deg);
+    }
+
+    .ghost.left {
+      transform: rotate(180deg);
+    }
+
+    .ghost.up {
+      transform: rotate(270deg);
+    }
+
+    /* Message de fin */
+    #game-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 2.2em;
+      font-weight: bold;
+      text-align: center;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #ffec40;
+      padding: 20px 40px;
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(255, 236, 64, 0.6);
+      display: none;
+      z-index: 10;
+    }
+
+    .win {
+      color: #00ff88;
+    }
+
+    .lose {
+      color: #ff4040;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    🍎 Score: <span id="score">0</span>
+  </div>
+  <div id="game-container">
+    <div id="game-board"></div>
+    <div id="game-message"></div>
+  </div>
+
+  <script>
+    // --- Paramètres du jeu ---
+    const BOARD_SIZE = 16; // 16x16 cases
+    const CELL_PADDING = 4;
+    const CELL_WIDTH = 640 / BOARD_SIZE; // 640px de large
+
+    // Représentation du plateau (0 = vide, 1 = mur, 2 = point, 3 = power pellet)
+    // 0 = vide, 1 = mur (🍎 gris), 2 = point (🍎 mini), 3 = power pellet (🍎 lueur)
+    const LEVEL = [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+      [1,2,1,2,2,2,2,2,2,2,2,2,2,1,2,1],
+      [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+      [1,2,1,2,2,2,2,2,2,2,2,2,2,1,2,1],
+      [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,1,1,1,1,1,1,1,1,1,2,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ];
+
+    // --- Variables du jeu ---
+    let score = 0;
+    let gameOver = false;
+    let gameWon = false;
+
+    // Position initiale de Pacman (ligne, colonne)
+    let pacman = { row: 1, col: 1, direction: "right", queuedDirection: "right" };
+
+    // Fantômes : chacun a une position, une couleur (via CSS), et un état
+    const GHOST_COUNT = 4;
+    let ghosts = [];
+
+    // Grille du DOM (référence vers chaque cellule)
+    const cells = Array.from({ length: BOARD_SIZE }, () =>
+      Array.from({ length: BOARD_SIZE }, () => null)
+    );
+
+    // --- Initialisation du plateau ---
+    const gameBoard = document.getElementById("game-board");
+    const scoreDisplay = document.getElementById("score");
+    const messageDiv = document.getElementById("game-message");
+
+    function initBoard() {
+      gameBoard.innerHTML = "";
+
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cell = document.createElement("div");
+          cell.classList.add("cell");
+          gameBoard.appendChild(cell);
+          cells[r][c] = cell;
+
+          const value = LEVEL[r][c];
+          if (value === 1) {
+            // Mur représenté par une pomme grise
+            cell.textContent = "🍎";
+            cell.classList.add("wall");
+          } else if (value === 2) {
+            // Point = mini pomme
+            cell.textContent = "🍎";
+            cell.classList.add("point");
+          } else if (value === 3) {
+            // Power pellet = pomme avec lueur
+            cell.textContent = "🍎";
+            cell.classList.add("power-pellet");
+          }
+        }
+      }
+
+      // Place Pacman dans la cellule correspondante
+      updatePacmanDom();
+
+      // Place les fantômes aléatoirement dans des cases non mur
+      ghosts = [];
+      for (let i = 0; i < GHOST_COUNT; i++) {
+        let row, col;
+        do {
+          row = Math.floor(Math.random() * BOARD_SIZE);
+          col = Math.floor(Math.random() * BOARD_SIZE);
+        } while (LEVEL[row][col] === 1 || (row === pacman.row && col === pacman.col));
+        ghosts.push({
+          row,
+          col,
+          state: "chase", // "chase", "vulnerable", "dead"
+          direction: "right",
+          respawnTimer: 0,
+        });
+      }
+
+      // Met à jour les fantômes dans le DOM
+      updateGhostsDom();
+    }
+
+    function updatePacmanDom() {
+      // Nettoyer toutes les anciennes classes de pacman
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cell = cells[r][c];
+          if (cell.textContent === "🍎" && cell.classList.contains("pacman")) {
+            cell.textContent = "";
+            cell.classList.remove("pacman", "right", "down", "left", "up");
+          }
+        }
+      }
+
+      const cell = cells[pacman.row][pacman.col];
+      cell.textContent = "🍎";
+      cell.classList.add("pacman");
+      cell.classList.add(pacman.direction);
+    }
+
+    function updateGhostsDom() {
+      // Nettoyer les fantômes anciens
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cell = cells[r][c];
+          if (cell.textContent === "🍎" && cell.classList.contains("ghost")) {
+            cell.textContent = "";
+            cell.classList.remove("ghost", "chase", "vulnerable", "dead", "right", "down", "left", "up");
+          }
+        }
+      }
+
+      ghosts.forEach(ghost => {
+        if (ghost.respawnTimer > 0) return;
+
+        const cell = cells[ghost.row][ghost.col];
+        cell.textContent = "🍎";
+        cell.classList.add("ghost");
+        cell.classList.add(ghost.state);
+
+        // Rotation selon la direction
+        if (ghost.direction === "right") {
+          cell.classList.add("right");
+        } else if (ghost.direction === "down") {
+          cell.classList.add("down");
+        } else if (ghost.direction === "left") {
+          cell.classList.add("left");
+        } else if (ghost.direction === "up") {
+          cell.classList.add("up");
+        }
+      });
+    }
+
+    // --- Déplacement et logique ---
+    function inBounds(row, col) {
+      return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
+    }
+
+    function isWall(row, col) {
+      return inBounds(row, col) && LEVEL[row][col] === 1;
+    }
+
+    function canMoveTo(row, col) {
+      return inBounds(row, col) && LEVEL[row][col] !== 1;
+    }
+
+    function handleInput() {
+      document.addEventListener("keydown", e => {
+        if (gameOver) return;
+        switch (e.key) {
+          case "ArrowRight":
+            pacman.queuedDirection = "right";
+            break;
+          case "ArrowLeft":
+            pacman.queuedDirection = "left";
+            break;
+          case "ArrowDown":
+            pacman.queuedDirection = "down";
+            break;
+          case "ArrowUp":
+            pacman.queuedDirection = "up";
+            break;
+        }
+      });
+    }
+
+    function movePacman() {
+      // Prioriser la direction demandée si possible
+      let nextRow = pacman.row;
+      let nextCol = pacman.col;
+
+      if (pacman.queuedDirection === "right") nextCol++;
+      if (pacman.queuedDirection === "left") nextCol--;
+      if (pacman.queuedDirection === "down") nextRow++;
+      if (pacman.queuedDirection === "up") nextRow--;
+
+      if (canMoveTo(nextRow, nextCol)) {
+        pacman.direction = pacman.queuedDirection;
+        pacman.row = nextRow;
+        pacman.col = nextCol;
+        updatePacmanDom();
+        collectItem();
+      } else {
+        // Si la direction demandée est bloquée, garder la direction courante
+        if (pacman.direction === "right") nextCol++;
+        if (pacman.direction === "left") nextCol--;
+        if (pacman.direction === "down") nextRow++;
+        if (pacman.direction === "up") nextRow--;
+
+        if (canMoveTo(nextRow, nextCol)) {
+          pacman.row = nextRow;
+          pacman.col = nextCol;
+          updatePacmanDom();
+          collectItem();
+        }
+      }
+    }
+
+    function collectItem() {
+      const cell = cells[pacman.row][pacman.col];
+      if (cell.classList.contains("point")) {
+        cell.textContent = "";
+        cell.classList.remove("point");
+        LEVEL[pacman.row][pacman.col] = 0;
+        score += 10;
+        scoreDisplay.textContent = score;
+      } else if (cell.classList.contains("power-pellet")) {
+        cell.textContent = "";
+        cell.classList.remove("power-pellet");
+        LEVEL[pacman.row][pacman.col] = 0;
+        score += 50;
+        scoreDisplay.textContent = score;
+        // Active le mode "vulnerable" pour les fantômes
+        startPowerMode();
+      }
+
+      // Vérifier s'il reste encore des points
+      if (!hasRemainingPoints()) {
+        endGame(true);
+      }
+    }
+
+    function hasRemainingPoints() {
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (LEVEL[r][c] === 2 || LEVEL[r][c] === 3) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // --- Comportement des fantômes ---
+    let powerModeTimeout = null;
+
+    function startPowerMode() {
+      if (powerModeTimeout) clearTimeout(powerModeTimeout);
+
+      ghosts.forEach(ghost => {
+        if (ghost.state === "chase") {
+          ghost.state = "vulnerable";
+        }
+      });
+      updateGhostsDom();
+
+      // Après 7 secondes, retour en mode normal
+      powerModeTimeout = setTimeout(() => {
+        ghosts.forEach(ghost => {
+          if (ghost.state === "vulnerable") {
+            ghost.state = "chase";
+          }
+        });
+        updateGhostsDom();
+      }, 7000);
+    }
+
+    function moveGhosts() {
+      ghosts.forEach(ghost => {
+        if (ghost.respawnTimer > 0) {
+          ghost.respawnTimer--;
+          if (ghost.respawnTimer === 0) {
+            // Revenir à la vie
+            ghost.state = "chase";
+          } else {
+            return;
+          }
+        }
+
+        // Liste des directions possibles
+        const directions = [
+          { row: ghost.row - 1, col: ghost.col, dir: "up" },
+          { row: ghost.row + 1, col: ghost.col, dir: "down" },
+          { row: ghost.row, col: ghost.col - 1, dir: "left" },
+          { row: ghost.row, col: ghost.col + 1, dir: "right" },
+        ];
+
+        // On filtre les murs et les limites
