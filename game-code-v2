@@ -347,7 +347,7 @@
 
     function handleInput() {
       document.addEventListener("keydown", e => {
-        if (gameOver) return;
+        if (gameOver || gameWon) return;
         switch (e.key) {
           case "ArrowRight":
             pacman.queuedDirection = "right";
@@ -383,6 +383,9 @@
         collectItem();
       } else {
         // Si la direction demandée est bloquée, garder la direction courante
+        nextRow = pacman.row;
+        nextCol = pacman.col;
+
         if (pacman.direction === "right") nextCol++;
         if (pacman.direction === "left") nextCol--;
         if (pacman.direction === "down") nextRow++;
@@ -463,9 +466,8 @@
           if (ghost.respawnTimer === 0) {
             // Revenir à la vie
             ghost.state = "chase";
-          } else {
-            return;
           }
+          return;
         }
 
         // Liste des directions possibles
@@ -477,3 +479,82 @@
         ];
 
         // On filtre les murs et les limites
+        const validDirections = directions.filter(d => canMoveTo(d.row, d.col));
+
+        if (validDirections.length === 0) return;
+
+        // IA simple : chasser Pacman si en mode chase, sinon aléatoire
+        let nextMove;
+        if (ghost.state === "chase") {
+          // Chasser Pacman : calcul de la distance pour chaque direction
+          nextMove = validDirections.reduce((best, current) => {
+            const distCurrent = Math.abs(current.row - pacman.row) + Math.abs(current.col - pacman.col);
+            const distBest = Math.abs(best.row - pacman.row) + Math.abs(best.col - pacman.col);
+            return distCurrent < distBest ? current : best;
+          });
+        } else {
+          // Mode vulnerable ou autre : direction aléatoire
+          nextMove = validDirections[Math.floor(Math.random() * validDirections.length)];
+        }
+
+        ghost.row = nextMove.row;
+        ghost.col = nextMove.col;
+        ghost.direction = nextMove.dir;
+      });
+
+      updateGhostsDom();
+    }
+
+    function checkCollisions() {
+      ghosts.forEach((ghost, index) => {
+        if (ghost.row === pacman.row && ghost.col === pacman.col) {
+          if (ghost.state === "vulnerable") {
+            // Fantôme mangé
+            ghost.state = "dead";
+            ghost.respawnTimer = 3; // Respawn après 3 ticks
+            score += 200;
+            scoreDisplay.textContent = score;
+          } else if (ghost.state === "chase") {
+            // Pacman mangé
+            endGame(false);
+          }
+        }
+      });
+    }
+
+    function endGame(won) {
+      gameOver = true;
+      gameWon = won;
+
+      messageDiv.style.display = "block";
+      if (won) {
+        messageDiv.textContent = "🎉 YOU WIN! 🎉";
+        messageDiv.classList.add("win");
+        messageDiv.classList.remove("lose");
+      } else {
+        messageDiv.textContent = "💀 GAME OVER 💀";
+        messageDiv.classList.add("lose");
+        messageDiv.classList.remove("win");
+      }
+    }
+
+    // --- Boucle de jeu ---
+    let gameLoopInterval = null;
+
+    function startGameLoop() {
+      gameLoopInterval = setInterval(() => {
+        if (!gameOver && !gameWon) {
+          movePacman();
+          moveGhosts();
+          checkCollisions();
+        }
+      }, 200); // Met à jour chaque 200ms
+    }
+
+    // --- Démarrage du jeu ---
+    initBoard();
+    handleInput();
+    startGameLoop();
+  </script>
+</body>
+</html>
