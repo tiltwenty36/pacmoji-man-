@@ -26,6 +26,14 @@
     #score {
       display: inline-block;
       margin-left: 10px;
+      color: #ffff00;
+      font-weight: bold;
+    }
+
+    #pacman-emoji {
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 1.3em;
     }
 
     #game-container {
@@ -66,11 +74,17 @@
       text-shadow: 0 0 4px rgba(31, 81, 255, 0.8);
     }
 
-    /* Points : petits cercles jaunes */
+    /* Points : bananes jaunes */
     .point {
-      font-size: 14px;
-      color: #ffff99;
-      text-shadow: 0 0 3px rgba(255, 255, 153, 0.6);
+      font-size: 24px;
+      color: #ffdd00;
+      text-shadow: 0 0 3px rgba(255, 221, 0, 0.6);
+      animation: bounce 0.8s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
     }
 
     /* Power pellet : étoile brillante */
@@ -89,11 +103,12 @@
       50% { opacity: 0.7; }
     }
 
-    /* Pac-Man : cercle jaune */
+    /* Pac-Man : emoji visage jaune */
     .pacman {
       transform-origin: center;
       transition: transform 0.1s ease;
       color: #ffff00;
+      font-size: 28px;
     }
 
     .pacman.right {
@@ -213,7 +228,7 @@
 </head>
 <body>
   <div id="hud">
-    🍎 Score: <span id="score">0</span>
+    🎮 Score: <span id="score">0</span> | Pacman: <span id="pacman-emoji">😊</span>
   </div>
   <div id="game-container">
     <div id="game-board"></div>
@@ -230,6 +245,12 @@
     const BOARD_SIZE = 16; // 16x16 cases
     const CELL_PADDING = 4;
     const CELL_WIDTH = 640 / BOARD_SIZE; // 640px de large
+    const POINTS_PER_EMOJI_CHANGE = 100; // Change d'émoji tous les 100 points
+
+    // Array d'émojis de visages jaunes aléatoires pour Pac-Man
+    const YELLOW_FACE_EMOJIS = [
+      "😊", "😄", "😁", "🤗", "😆", "😃", "😀", "🥰", "😍", "😎", "🤪", "😜", "😝"
+    ];
 
     // Représentation du plateau (0 = vide, 1 = mur, 2 = point, 3 = power pellet)
     const LEVEL = [
@@ -255,9 +276,16 @@
     let score = 0;
     let gameOver = false;
     let gameWon = false;
+    let lastEmojiChangeScore = 0;
 
     // Position initiale de Pacman (ligne, colonne)
-    let pacman = { row: 1, col: 1, direction: "right", queuedDirection: "right" };
+    let pacman = { 
+      row: 1, 
+      col: 1, 
+      direction: "right", 
+      queuedDirection: "right",
+      emoji: getRandomYellowEmoji()
+    };
 
     // Fantômes : chacun a une position, une couleur (via CSS), et un état
     const GHOST_COUNT = 4;
@@ -271,9 +299,22 @@
     // --- Initialisation du plateau ---
     const gameBoard = document.getElementById("game-board");
     const scoreDisplay = document.getElementById("score");
+    const pacmanEmojiDisplay = document.getElementById("pacman-emoji");
     const messageDiv = document.getElementById("game-message");
     const messageText = document.getElementById("message-text");
     const replayBtn = document.getElementById("replay-btn");
+
+    // Fonction pour obtenir un émoji de visage jaune aléatoire
+    function getRandomYellowEmoji() {
+      return YELLOW_FACE_EMOJIS[Math.floor(Math.random() * YELLOW_FACE_EMOJIS.length)];
+    }
+
+    // Fonction pour changer l'émoji de Pac-Man
+    function changePacmanEmoji() {
+      pacman.emoji = getRandomYellowEmoji();
+      pacmanEmojiDisplay.textContent = pacman.emoji;
+      updatePacmanDom();
+    }
 
     function initBoard() {
       gameBoard.innerHTML = "";
@@ -291,8 +332,8 @@
             cell.textContent = "🟦";
             cell.classList.add("wall");
           } else if (value === 2) {
-            // Point = petit cercle jaune
-            cell.textContent = "·";
+            // Point = banane jaune
+            cell.textContent = "🍌";
             cell.classList.add("point");
           } else if (value === 3) {
             // Power pellet = étoile
@@ -339,7 +380,7 @@
       }
 
       const cell = cells[pacman.row][pacman.col];
-      cell.textContent = "⭕";
+      cell.textContent = pacman.emoji;
       cell.classList.add("pacman");
       cell.classList.add(pacman.direction);
     }
@@ -453,12 +494,25 @@
         LEVEL[pacman.row][pacman.col] = 0;
         score += 10;
         scoreDisplay.textContent = score;
+
+        // Vérifier si on doit changer l'émoji de Pac-Man (tous les 100 points)
+        if (score - lastEmojiChangeScore >= POINTS_PER_EMOJI_CHANGE) {
+          lastEmojiChangeScore = score;
+          changePacmanEmoji();
+        }
       } else if (cell.classList.contains("power-pellet")) {
         cell.textContent = "";
         cell.classList.remove("power-pellet");
         LEVEL[pacman.row][pacman.col] = 0;
         score += 50;
         scoreDisplay.textContent = score;
+
+        // Vérifier si on doit changer l'émoji de Pac-Man
+        if (score - lastEmojiChangeScore >= POINTS_PER_EMOJI_CHANGE) {
+          lastEmojiChangeScore = score;
+          changePacmanEmoji();
+        }
+
         // Active le mode "vulnerable" pour les fantômes
         startPowerMode();
       }
@@ -559,6 +613,12 @@
             ghost.respawnTimer = 3; // Respawn après 3 ticks
             score += 200;
             scoreDisplay.textContent = score;
+
+            // Vérifier si on doit changer l'émoji de Pac-Man
+            if (score - lastEmojiChangeScore >= POINTS_PER_EMOJI_CHANGE) {
+              lastEmojiChangeScore = score;
+              changePacmanEmoji();
+            }
           } else if (ghost.state === "chase") {
             // Pacman mangé
             endGame(false);
@@ -589,11 +649,22 @@
       score = 0;
       gameOver = false;
       gameWon = false;
+      lastEmojiChangeScore = 0;
       scoreDisplay.textContent = score;
       messageDiv.style.display = "none";
       replayBtn.style.display = "none";
 
-      // Réinitialiser la grille et recommencer
+      // Réinitialiser Pac-Man avec un nouvel émoji aléatoire
+      pacman = {
+        row: 1,
+        col: 1,
+        direction: "right",
+        queuedDirection: "right",
+        emoji: getRandomYellowEmoji()
+      };
+      pacmanEmojiDisplay.textContent = pacman.emoji;
+
+      // Réinitialiser la grille
       for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
           LEVEL[r][c] = [
@@ -616,8 +687,6 @@
           ][r][c];
         }
       }
-
-      pacman = { row: 1, col: 1, direction: "right", queuedDirection: "right" };
 
       initBoard();
     }
