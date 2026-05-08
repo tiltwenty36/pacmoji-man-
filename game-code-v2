@@ -246,6 +246,7 @@
     const CELL_PADDING = 4;
     const CELL_WIDTH = 640 / BOARD_SIZE; // 640px de large
     const POINTS_PER_EMOJI_CHANGE = 100; // Change d'émoji tous les 100 points
+    const GAME_SPEED = 250; // Ralentissement du jeu (en ms) - était 100ms, maintenant 250ms
 
     // Array d'émojis de visages jaunes aléatoires pour Pac-Man
     const YELLOW_FACE_EMOJIS = [
@@ -284,7 +285,7 @@
       col: 1, 
       direction: "right", 
       queuedDirection: "right",
-      emoji: getRandomYellowEmoji()
+      emoji: "😊"
     };
 
     // Fantômes : chacun a une position, une couleur (via CSS), et un état
@@ -343,7 +344,7 @@
         }
       }
 
-      // Place Pacman dans la cellule correspondante
+      // Place Pacman dans la cellule correspondante APRÈS avoir créé toutes les cellules
       updatePacmanDom();
 
       // Place les fantômes aléatoirement dans des cases non mur
@@ -381,8 +382,7 @@
 
       const cell = cells[pacman.row][pacman.col];
       cell.textContent = pacman.emoji;
-      cell.classList.add("pacman");
-      cell.classList.add(pacman.direction);
+      cell.classList.add("pacman", pacman.direction);
     }
 
     function updateGhostsDom() {
@@ -402,8 +402,7 @@
 
         const cell = cells[ghost.row][ghost.col];
         cell.textContent = "👻";
-        cell.classList.add("ghost");
-        cell.classList.add(ghost.state);
+        cell.classList.add("ghost", ghost.state);
 
         // Rotation selon la direction
         if (ghost.direction === "right") {
@@ -654,13 +653,13 @@
       messageDiv.style.display = "none";
       replayBtn.style.display = "none";
 
-      // Réinitialiser Pac-Man avec un nouvel émoji aléatoire
+      // Réinitialiser Pac-Man avec un émoji par défaut (pas aléatoire au démarrage)
       pacman = {
         row: 1,
         col: 1,
         direction: "right",
         queuedDirection: "right",
-        emoji: getRandomYellowEmoji()
+        emoji: "😊"
       };
       pacmanEmojiDisplay.textContent = pacman.emoji;
 
@@ -701,7 +700,7 @@
           moveGhosts();
           checkCollisions();
         }
-      }, 100); // Mise à jour chaque 100ms pour plus de fluidité
+      }, GAME_SPEED); // Utilisation de la constante GAME_SPEED pour contrôler la vitesse
     }
 
     // --- Écouteurs d'événements ---
