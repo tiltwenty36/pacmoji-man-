@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pac-Apple 🍎</title>
+  <style>
+    /* Mise en page du jeu */
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #000;
+      font-family: monospace;
+      color: white;
+    }
+
+    #hud {
+      margin-bottom: 10px;
+      font-size: 1.2em;
+    }
+
+    #score {
+      display: inline-block;
+      margin-left: 10px;
+      color: #ffff00;
+      font-weight: bold;
+    }
+
+    #pacman-emoji {
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 1.3em;
+    }
+
+    #game-container {
+      position: relative;
+      width: 640px;
+      height: 640px;
+      border: 4px solid #888;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+      overflow: hidden;
+    }
+
+    #game-board {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: repeat(16, 1fr);
+      grid-template-columns: repeat(16, 1fr);
+      gap: 0;
+      background-color: #000;
+    }
+
+    .cell {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 32px;
+      user-select: none;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    /* Murs : emojis bloc bleu */
+    .wall {
+      color: #1f51ff;
+      text-shadow: 0 0 4px rgba(31, 81, 255, 0.8);
+    }
+
+    /* Points : bananes jaunes */
+    .point {
+      font-size: 24px;
+      color: #ffdd00;
+      text-shadow: 0 0 3px rgba(255, 221, 0, 0.6);
+      animation: bounce 0.8s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    /* Power pellet : étoile brillante */
+    .power-pellet {
+      font-size: 22px;
+      color: #ffff00;
+      text-shadow:
+        0 0 8px #ffff00,
+        0 0 16px #ffff00,
+        0 0 24px rgba(255, 255, 0, 0.6);
+      animation: pulse 0.6s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* Pac-Man : emoji visage jaune */
+    .pacman {
+      transform-origin: center;
+      transition: transform 0.1s ease;
+      color: #ffff00;
+      font-size: 28px;
+    }
+
+    .pacman.right {
+      transform: rotate(0deg);
+    }
+
+    .pacman.down {
+      transform: rotate(90deg);
+    }
+
+    .pacman.left {
+      transform: rotate(180deg);
+    }
+
+    .pacman.up {
+      transform: rotate(270deg);
+    }
+
+    /* Fantômes : emojis fantômes colorés */
+    .ghost {
+      transform-origin: center;
+      color: #ff6666;
+      text-shadow:
+        0 0 2px rgba(255, 100, 100, 0.6),
+        0 0 4px rgba(255, 100, 100, 0.4);
+    }
+
+    .ghost.chase {
+      color: #ff6666;
+      text-shadow:
+        0 0 2px rgba(255, 100, 100, 0.6),
+        0 0 4px rgba(255, 100, 100, 0.4);
+      transform: scale(1.05);
+    }
+
+    .ghost.vulnerable {
+      color: #88ff88;
+      text-shadow:
+        0 0 4px rgba(136, 255, 136, 0.8),
+        0 0 8px rgba(136, 255, 136, 0.5);
+    }
+
+    .ghost.dead {
+      color: #cccccc;
+      opacity: 0.4;
+      text-shadow: none;
+    }
+
+    .ghost.down {
+      transform: rotate(90deg);
+    }
+
+    .ghost.left {
+      transform: rotate(180deg);
+    }
+
+    .ghost.up {
+      transform: rotate(270deg);
+    }
+
+    /* Message de fin */
+    #game-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 2.2em;
+      font-weight: bold;
+      text-align: center;
+      background-color: rgba(0, 0, 0, 0.95);
+      color: #ffec40;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(255, 236, 64, 0.6);
+      display: none;
+      z-index: 10;
+    }
+
+    .win {
+      color: #00ff88;
+    }
+
+    .lose {
+      color: #ff4040;
+    }
+
+    #replay-btn {
+      display: none;
+      margin-top: 20px;
+      padding: 12px 30px;
+      font-size: 1.1em;
+      background-color: #ffff00;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    #replay-btn:hover {
+      background-color: #ffff99;
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 255, 0, 0.6);
+    }
+
+    #replay-btn:active {
+      transform: scale(0.95);
+    }
+
+    #message-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    🎮 Score: <span id="score">0</span> | Pacman: <span id="pacman-emoji">😊</span>
+  </div>
+  <div id="game-container">
+    <div id="game-board"></div>
+    <div id="game-message">
+      <div id="message-container">
+        <div id="message-text"></div>
+        <button id="replay-btn">REJOUER</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Paramètres du jeu ---
+    const BOARD_SIZE = 16; // 16x16 cases
+    const CELL_PADDING = 4;
+    const CELL_WIDTH = 640 / BOARD_SIZE; // 640px de large
+    const POINTS_PER_EMOJI_CHANGE = 100; // Change d'émoji tous les 100 points
+    const GAME_SPEED = 250; // Ralentissement du jeu (en ms) - était 100ms, maintenant 250ms
+
+    // Array d'émojis de visages jaunes aléatoires pour Pac-Man
+    const YELLOW_FACE_EMOJIS = [
+      "😊", "😄", "😁", "🤗", "😆", "😃", "😀", "🥰", "😍", "😎", "🤪", "😜", "😝"
+    ];
+
+    // Représentation du plateau (0 = vide, 1 = mur, 2 = point, 3 = power pellet)
+    const LEVEL = [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+      [1,2,1,2,2,2,2,2,2,2,2,2,2,1,2,1],
+      [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+      [1,2,1,2,2,2,2,2,2,2,2,2,2,1,2,1],
+      [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,1,1,1,1,1,1,1,1,1,2,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ];
+
+    // --- Variables du jeu ---
+    let score = 0;
+    let gameOver = false;
+    let gameWon = false;
+    let lastEmojiChangeScore = 0;
+
+    // Position initiale de Pacman (ligne, colonne)
+    let pacman = { 
+      row: 1, 
+      col: 1, 
+      direction: "right", 
+      queuedDirection: "right",
+      emoji: "😊"
+    };
+
+    // Fantômes : chacun a une position, une couleur (via CSS), et un état
+    const GHOST_COUNT = 4;
+    let ghosts = [];
+
+    // Grille du DOM (référence vers chaque cellule)
+    const cells = Array.from({ length: BOARD_SIZE }, () =>
+      Array.from({ length: BOARD_SIZE }, () => null)
+    );
+
+    // --- Initialisation du plateau ---
+    const gameBoard = document.getElementById("game-board");
+    const scoreDisplay = document.getElementById("score");
+    const pacmanEmojiDisplay = document.getElementById("pacman-emoji");
+    const messageDiv = document.getElementById("game-message");
+    const messageText = document.getElementById("message-text");
+    const replayBtn = document.getElementById("replay-btn");
+
+    // Fonction pour obtenir un émoji de visage jaune aléatoire
+    function getRandomYellowEmoji() {
+      return YELLOW_FACE_EMOJIS[Math.floor(Math.random() * YELLOW_FACE_EMOJIS.length)];
+    }
+
+    // Fonction pour changer l'émoji de Pac-Man
+    function changePacmanEmoji() {
+      pacman.emoji = getRandomYellowEmoji();
+      pacmanEmojiDisplay.textContent = pacman.emoji;
+      updatePacmanDom();
+    }
+
+    function initBoard() {
+      gameBoard.innerHTML = "";
+
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cell = document.createElement("div");
+          cell.classList.add("cell");
+          gameBoard.appendChild(cell);
+          cells[r][c] = cell;
+
+          const value = LEVEL[r][c];
+          if (value === 1) {
+            // Mur représenté par un bloc bleu
+            cell.textContent = "🟦";
+            cell.classList.add("wall");
+          } else if (value === 2) {
+            // Point = banane jaune
+            cell.textContent = "🍌";
+            cell.classList.add("point");
+          } else if (value === 3) {
+            // Power pellet = étoile
+            cell.textContent = "⭐";
+            cell.classList.add("power-pellet");
+          }
+        }
+      }
+
+      // Place Pacman dans la cellule correspondante APRÈS avoir créé toutes les cellules
+      updatePacmanDom();
+
+      // Place les fantômes aléatoirement dans des cases non mur
+      ghosts = [];
+      for (let i = 0; i < GHOST_COUNT; i++) {
+        let row, col;
+        do {
+          row = Math.floor(Math.random() * BOARD_SIZE);
+          col = Math.floor(Math.random() * BOARD_SIZE);
+        } while (LEVEL[row][col] === 1 || (row === pacman.row && col === pacman.col));
+        ghosts.push({
+          row,
+          col,
+          state: "chase", // "chase", "vulnerable", "dead"
+          direction: "right",
+          respawnTimer: 0,
+        });
+      }
+
+      // Met à jour les fantômes dans le DOM
+      updateGhostsDom();
+    }
+
+    function updatePacmanDom() {
+      // Nettoyer toutes les anciennes classes de pacman
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cell = cells[r][c];
+          if (cell.classList.contains("pacman")) {
+            cell.textContent = "";
+            cell.classList.remove("pacman", "right", "down", "left", "up");
+          }
+        }
+      }
+
+      const cell = cells[pacman.row][pacman.col];
+      cell.textContent = pacman.emoji;
+      cell.classList.add("pacman", pacman.direction);
+    }
+
+    function updateGhostsDom() {
+      // Nettoyer les fantômes anciens
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cell = cells[r][c];
+          if (cell.classList.contains("ghost")) {
+            cell.textContent = "";
+            cell.classList.remove("ghost", "chase", "vulnerable", "dead", "right", "down", "left", "up");
+          }
+        }
+      }
+
+      ghosts.forEach(ghost => {
+        if (ghost.respawnTimer > 0) return;
+
+        const cell = cells[ghost.row][ghost.col];
+        cell.textContent = "👻";
+        cell.classList.add("ghost", ghost.state);
+
+        // Rotation selon la direction
+        if (ghost.direction === "right") {
+          cell.classList.add("right");
+        } else if (ghost.direction === "down") {
+          cell.classList.add("down");
+        } else if (ghost.direction === "left") {
+          cell.classList.add("left");
+        } else if (ghost.direction === "up") {
+          cell.classList.add("up");
+        }
+      });
+    }
+
+    // --- Déplacement et logique ---
+    function inBounds(row, col) {
+      return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
+    }
+
+    function isWall(row, col) {
+      return inBounds(row, col) && LEVEL[row][col] === 1;
+    }
+
+    function canMoveTo(row, col) {
+      return inBounds(row, col) && LEVEL[row][col] !== 1;
+    }
+
+    function handleInput() {
+      document.addEventListener("keydown", e => {
+        if (gameOver || gameWon) return;
+        switch (e.key) {
+          case "ArrowRight":
+            pacman.queuedDirection = "right";
+            break;
+          case "ArrowLeft":
+            pacman.queuedDirection = "left";
+            break;
+          case "ArrowDown":
+            pacman.queuedDirection = "down";
+            break;
+          case "ArrowUp":
+            pacman.queuedDirection = "up";
+            break;
+        }
+      });
+    }
+
+    function movePacman() {
+      // Prioriser la direction demandée si possible
+      let nextRow = pacman.row;
+      let nextCol = pacman.col;
+
+      if (pacman.queuedDirection === "right") nextCol++;
+      if (pacman.queuedDirection === "left") nextCol--;
+      if (pacman.queuedDirection === "down") nextRow++;
+      if (pacman.queuedDirection === "up") nextRow--;
+
+      if (canMoveTo(nextRow, nextCol)) {
+        pacman.direction = pacman.queuedDirection;
+        pacman.row = nextRow;
+        pacman.col = nextCol;
+        updatePacmanDom();
+        collectItem();
+      } else {
+        // Si la direction demandée est bloquée, garder la direction courante
+        nextRow = pacman.row;
+        nextCol = pacman.col;
+
+        if (pacman.direction === "right") nextCol++;
+        if (pacman.direction === "left") nextCol--;
+        if (pacman.direction === "down") nextRow++;
+        if (pacman.direction === "up") nextRow--;
+
+        if (canMoveTo(nextRow, nextCol)) {
+          pacman.row = nextRow;
+          pacman.col = nextCol;
+          updatePacmanDom();
+          collectItem();
+        }
+      }
+    }
+
+    function collectItem() {
+      const cell = cells[pacman.row][pacman.col];
+      if (cell.classList.contains("point")) {
+        cell.textContent = "";
+        cell.classList.remove("point");
+        LEVEL[pacman.row][pacman.col] = 0;
+        score += 10;
+        scoreDisplay.textContent = score;
+
+        // Vérifier si on doit changer l'émoji de Pac-Man (tous les 100 points)
+        if (score - lastEmojiChangeScore >= POINTS_PER_EMOJI_CHANGE) {
+          lastEmojiChangeScore = score;
+          changePacmanEmoji();
+        }
+      } else if (cell.classList.contains("power-pellet")) {
+        cell.textContent = "";
+        cell.classList.remove("power-pellet");
+        LEVEL[pacman.row][pacman.col] = 0;
+        score += 50;
+        scoreDisplay.textContent = score;
+
+        // Vérifier si on doit changer l'émoji de Pac-Man
+        if (score - lastEmojiChangeScore >= POINTS_PER_EMOJI_CHANGE) {
+          lastEmojiChangeScore = score;
+          changePacmanEmoji();
+        }
+
+        // Active le mode "vulnerable" pour les fantômes
+        startPowerMode();
+      }
+
+      // Vérifier s'il reste encore des points
+      if (!hasRemainingPoints()) {
+        endGame(true);
+      }
+    }
+
+    function hasRemainingPoints() {
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (LEVEL[r][c] === 2 || LEVEL[r][c] === 3) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // --- Comportement des fantômes ---
+    let powerModeTimeout = null;
+
+    function startPowerMode() {
+      if (powerModeTimeout) clearTimeout(powerModeTimeout);
+
+      ghosts.forEach(ghost => {
+        if (ghost.state === "chase") {
+          ghost.state = "vulnerable";
+        }
+      });
+      updateGhostsDom();
+
+      // Après 7 secondes, retour en mode normal
+      powerModeTimeout = setTimeout(() => {
+        ghosts.forEach(ghost => {
+          if (ghost.state === "vulnerable") {
+            ghost.state = "chase";
+          }
+        });
+        updateGhostsDom();
+      }, 7000);
+    }
+
+    function moveGhosts() {
+      ghosts.forEach(ghost => {
+        if (ghost.respawnTimer > 0) {
+          ghost.respawnTimer--;
+          if (ghost.respawnTimer === 0) {
+            // Revenir à la vie
+            ghost.state = "chase";
+          }
+          return;
+        }
+
+        // Liste des directions possibles
+        const directions = [
+          { row: ghost.row - 1, col: ghost.col, dir: "up" },
+          { row: ghost.row + 1, col: ghost.col, dir: "down" },
+          { row: ghost.row, col: ghost.col - 1, dir: "left" },
+          { row: ghost.row, col: ghost.col + 1, dir: "right" },
+        ];
+
+        // On filtre les murs et les limites
+        const validDirections = directions.filter(d => canMoveTo(d.row, d.col));
+
+        if (validDirections.length === 0) return;
+
+        // IA simple : chasser Pacman si en mode chase, sinon aléatoire
+        let nextMove;
+        if (ghost.state === "chase") {
+          // Chasser Pacman : calcul de la distance pour chaque direction
+          nextMove = validDirections.reduce((best, current) => {
+            const distCurrent = Math.abs(current.row - pacman.row) + Math.abs(current.col - pacman.col);
+            const distBest = Math.abs(best.row - pacman.row) + Math.abs(best.col - pacman.col);
+            return distCurrent < distBest ? current : best;
+          });
+        } else {
+          // Mode vulnerable ou autre : direction aléatoire
+          nextMove = validDirections[Math.floor(Math.random() * validDirections.length)];
+        }
+
+        ghost.row = nextMove.row;
+        ghost.col = nextMove.col;
+        ghost.direction = nextMove.dir;
+      });
+
+      updateGhostsDom();
+    }
+
+    function checkCollisions() {
+      ghosts.forEach((ghost, index) => {
+        if (ghost.row === pacman.row && ghost.col === pacman.col) {
+          if (ghost.state === "vulnerable") {
+            // Fantôme mangé
+            ghost.state = "dead";
+            ghost.respawnTimer = 3; // Respawn après 3 ticks
+            score += 200;
+            scoreDisplay.textContent = score;
+
+            // Vérifier si on doit changer l'émoji de Pac-Man
+            if (score - lastEmojiChangeScore >= POINTS_PER_EMOJI_CHANGE) {
+              lastEmojiChangeScore = score;
+              changePacmanEmoji();
+            }
+          } else if (ghost.state === "chase") {
+            // Pacman mangé
+            endGame(false);
+          }
+        }
+      });
+    }
+
+    function endGame(won) {
+      gameOver = true;
+      gameWon = won;
+
+      messageDiv.style.display = "block";
+      if (won) {
+        messageText.textContent = "🎉 YOU WIN! 🎉";
+        messageDiv.classList.add("win");
+        messageDiv.classList.remove("lose");
+      } else {
+        messageText.textContent = "💀 GAME OVER 💀";
+        messageDiv.classList.add("lose");
+        messageDiv.classList.remove("win");
+      }
+      replayBtn.style.display = "block";
+    }
+
+    function resetGame() {
+      // Réinitialiser toutes les variables
+      score = 0;
+      gameOver = false;
+      gameWon = false;
+      lastEmojiChangeScore = 0;
+      scoreDisplay.textContent = score;
+      messageDiv.style.display = "none";
+      replayBtn.style.display = "none";
+
+      // Réinitialiser Pac-Man avec un émoji par défaut (pas aléatoire au démarrage)
+      pacman = {
+        row: 1,
+        col: 1,
+        direction: "right",
+        queuedDirection: "right",
+        emoji: "😊"
+      };
+      pacmanEmojiDisplay.textContent = pacman.emoji;
+
+      // Réinitialiser la grille
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          LEVEL[r][c] = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+            [1,2,1,2,2,2,2,2,2,2,2,2,2,1,2,1],
+            [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,2,1,1,1,1,2,1,1,1,2,1],
+            [1,2,1,2,2,2,2,2,2,2,2,2,2,1,2,1],
+            [1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,1,1,1,1,1,1,1,1,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          ][r][c];
+        }
+      }
+
+      initBoard();
+    }
+
+    // --- Boucle de jeu ---
+    let gameLoopInterval = null;
+
+    function startGameLoop() {
+      gameLoopInterval = setInterval(() => {
+        if (!gameOver && !gameWon) {
+          movePacman();
+          moveGhosts();
+          checkCollisions();
+        }
+      }, GAME_SPEED); // Utilisation de la constante GAME_SPEED pour contrôler la vitesse
+    }
+
+    // --- Écouteurs d'événements ---
+    replayBtn.addEventListener("click", resetGame);
+
+    // --- Démarrage du jeu ---
+    initBoard();
+    handleInput();
+    startGameLoop();
+  </script>
+</body>
+</html>
